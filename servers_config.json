@@ -1,0 +1,46 @@
+{
+    "servers": {
+        "server_180_35": {
+            "name": "Server 180.35",
+            "ip": "10.40.180.35",
+            "port": "19999",
+            "description": "Production Server 1",
+            "enabled": true
+        },
+        "server_180_36": {
+            "name": "Server 180.36",
+            "ip": "10.40.180.36",
+            "port": "19999",
+            "description": "Production Server 2",
+            "enabled": true
+        },
+        "server_180_6": {
+            "name": "Server 180.6",
+            "ip": "10.40.180.6",
+            "port": "19999",
+            "description": "Production Server 3",
+            "enabled": true
+        },
+        "server_180_9": {
+            "name": "Server 180.9",
+            "ip": "10.40.180.9",
+            "port": "19999",
+            "description": "Production Server 4",
+            "enabled": true
+        },
+        "server_180_37": {
+            "name": "Server 180.37",
+            "ip": "10.40.180.37",
+            "port": "19999",
+            "description": "Production Server 5",
+            "enabled": true
+        },
+        "server_180_38": {
+            "name": "Server 180.38",
+            "ip": "10.40.180.38",
+            "port": "19999",
+            "description": "Production Server 6",
+            "enabled": true
+        }
+    }
+}
