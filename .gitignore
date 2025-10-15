@@ -62,7 +62,6 @@ logs/
 
 # Deployment
 deployment/
-deploy.sh
 
 # Backup files
 *.bak
