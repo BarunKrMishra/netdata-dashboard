@@ -169,16 +169,15 @@ def get_netdata_ui_calculation(server_url, chart_name, timestamp):
 def get_single_point_data(server_url, chart_name):
     """
     Get single point data exactly like Netdata UI shows
-    Uses the same parameters as Netdata UI for exact matching
+    Uses real-time parameters for immediate data
     """
     try:
-        # Use the same parameters as Netdata UI:
-        # - after=-60: last 60 seconds (1 minute window)
+        # Use real-time parameters for immediate data:
+        # - after=-1: last 1 second (minimal window)
         # - before=0: ending now
-        # - points=60: one point per second for 1 minute
+        # - points=1: single latest point
         # - group=average: default grouping method
-        # - No options=unaligned: keep alignment for stable buckets
-        url = f"{server_url}/api/v1/data?chart={chart_name}&after=-60&before=0&points=60&group=average"
+        url = f"{server_url}/api/v1/data?chart={chart_name}&after=-1&before=0&points=1&group=average"
         response = requests.get(url, timeout=2)
         if response.status_code == 200:
             data = response.json()
@@ -196,16 +195,15 @@ def get_single_point_data(server_url, chart_name):
 def get_detailed_load_data(server_url):
     """
     Get detailed load data (load1, load5, load15) exactly like Netdata UI
-    Uses the same parameters as Netdata UI for exact matching
+    Uses real-time parameters for immediate data
     """
     try:
-        # Use the same parameters as Netdata UI:
-        # - after=-60: last 60 seconds (1 minute window)
+        # Use real-time parameters for immediate data:
+        # - after=-1: last 1 second (minimal window)
         # - before=0: ending now
-        # - points=60: one point per second for 1 minute
+        # - points=1: single latest point
         # - group=average: default grouping method
-        # - No options=unaligned: keep alignment for stable buckets
-        load_url = f"{server_url}/api/v1/data?chart=system.load&after=-60&before=0&points=60&group=average"
+        load_url = f"{server_url}/api/v1/data?chart=system.load&after=-1&before=0&points=1&group=average"
         response = requests.get(load_url, timeout=2)
         
         if response.status_code == 200:
@@ -478,7 +476,7 @@ def stream_metrics():
             else:
                 print(f"❌ Error in metrics data: {metrics_data.get('message', 'Unknown error')}")
             
-            time.sleep(1)  # Stream every 1 second
+            time.sleep(0.5)  # Stream every 0.5 seconds for real-time data
         except Exception as e:
             print(f"❌ Error in metrics streaming: {e}")
             time.sleep(1)
