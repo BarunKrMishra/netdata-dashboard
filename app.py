@@ -858,4 +858,4 @@ if __name__ == '__main__':
     print("📡 WebSocket URL: ws://0.0.0.0:5001")
     print("🌐 Dashboard URL: http://0.0.0.0:5001")
     print("⚡ Real-time streaming: Enabled")
-    socketio.run(app, host='0.0.0.0', port=5001, debug=False)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)
