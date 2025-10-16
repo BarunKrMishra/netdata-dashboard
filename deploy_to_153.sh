@@ -38,8 +38,11 @@ echo -e "${YELLOW}📋 Checking prerequisites on ${PRODUCTION_SERVER}...${NC}"
 # Check if Docker is installed
 if ! check_remote_command docker; then
     echo -e "${RED}❌ Docker is not installed on ${PRODUCTION_SERVER}${NC}"
-    echo -e "${YELLOW}Installing Docker...${NC}"
-    run_remote "yum update -y && yum install -y docker"
+    echo -e "${YELLOW}Installing Docker on CentOS...${NC}"
+    run_remote "yum update -y"
+    run_remote "yum install -y yum-utils device-mapper-persistent-data lvm2"
+    run_remote "yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo"
+    run_remote "yum install -y docker-ce docker-ce-cli containerd.io"
     run_remote "systemctl start docker && systemctl enable docker"
     echo -e "${GREEN}✅ Docker installed successfully${NC}"
 else

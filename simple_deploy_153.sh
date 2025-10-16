@@ -24,10 +24,24 @@ yum update -y
 
 # Install Docker if not installed
 if ! command -v docker &> /dev/null; then
-    echo -e "${YELLOW}🐳 Installing Docker...${NC}"
-    yum install -y docker
+    echo -e "${YELLOW}🐳 Installing Docker on CentOS...${NC}"
+    # Install required packages
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+    
+    # Add Docker repository
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    
+    # Install Docker CE
+    yum install -y docker-ce docker-ce-cli containerd.io
+    
+    # Start and enable Docker
     systemctl start docker
     systemctl enable docker
+    
+    # Add current user to docker group (if not root)
+    if [ "$USER" != "root" ]; then
+        usermod -aG docker $USER
+    fi
 fi
 
 # Install Docker Compose if not installed
