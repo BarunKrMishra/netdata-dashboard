@@ -240,13 +240,16 @@ def store_metric_data(server_id, server_name, metric_type, value, timestamp):
     Store metric data when threshold is crossed - organized by server
     """
     try:
+        # Convert Netdata timestamp to datetime for proper formatting
+        netdata_datetime = datetime.fromtimestamp(timestamp)
+        
         data_entry = {
             'server_id': server_id,
             'server_name': server_name,
             'value': value,
             'timestamp': timestamp,
-            'datetime': datetime.now().isoformat(),
-            'formatted_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'datetime': netdata_datetime.isoformat(),
+            'formatted_time': netdata_datetime.strftime('%Y-%m-%d %H:%M:%S')
         }
         
         # Initialize server data structure if it doesn't exist
