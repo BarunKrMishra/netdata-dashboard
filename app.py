@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 import threading
 import time
+import pytz
+from threading import Timer
 
 load_dotenv()
 
@@ -82,6 +84,13 @@ def get_default_servers():
 # Load servers configuration
 NETDATA_SERVERS = load_servers_config()
 
+# Timezone configuration for Indian Standard Time
+IST_TIMEZONE = pytz.timezone('Asia/Kolkata')
+
+# Data cleanup configuration
+DATA_RETENTION_HOURS = 48  # Keep data for 48 hours
+CLEANUP_INTERVAL_HOURS = 48  # Run cleanup every 48 hours
+
 # Google Chat Webhook
 GCHAT_WEBHOOK_URL = "https://chat.googleapis.com/v1/spaces/AAQA-CHmNo8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=muHJuBI-mncQJM7Z1fpnJSvLUYNACm8LSnv1V3vTqzs"
 
@@ -105,6 +114,71 @@ metric_history = {
 # WebSocket data streaming
 streaming_active = False
 streaming_thread = None
+
+# Data cleanup control
+cleanup_timer = None
+
+def get_ist_time():
+    """Get current time in Indian Standard Time"""
+    return datetime.now(IST_TIMEZONE)
+
+def format_ist_time(timestamp=None):
+    """Format timestamp to IST string"""
+    if timestamp is None:
+        dt = get_ist_time()
+    else:
+        # Convert Unix timestamp to IST
+        dt = datetime.fromtimestamp(timestamp, IST_TIMEZONE)
+    
+    return dt.strftime('%Y-%m-%d %H:%M:%S IST')
+
+def cleanup_old_data():
+    """Clean up data older than DATA_RETENTION_HOURS"""
+    try:
+        current_time = get_ist_time()
+        cutoff_time = current_time - timedelta(hours=DATA_RETENTION_HOURS)
+        cutoff_timestamp = cutoff_time.timestamp()
+        
+        cleaned_count = 0
+        for server_id, server_data in metric_history.items():
+            for metric_type, data_list in server_data.items():
+                # Filter out old data
+                original_count = len(data_list)
+                metric_history[server_id][metric_type] = [
+                    entry for entry in data_list 
+                    if entry.get('timestamp', 0) > cutoff_timestamp
+                ]
+                cleaned_count += original_count - len(metric_history[server_id][metric_type])
+        
+        if cleaned_count > 0:
+            print(f"🧹 Cleaned up {cleaned_count} old data entries (older than {DATA_RETENTION_HOURS} hours)")
+        
+        # Schedule next cleanup
+        schedule_next_cleanup()
+        
+    except Exception as e:
+        print(f"❌ Error during data cleanup: {e}")
+        # Schedule next cleanup even if this one failed
+        schedule_next_cleanup()
+
+def schedule_next_cleanup():
+    """Schedule the next data cleanup"""
+    global cleanup_timer
+    try:
+        # Cancel existing timer if any
+        if cleanup_timer:
+            cleanup_timer.cancel()
+        
+        # Schedule next cleanup
+        cleanup_timer = Timer(CLEANUP_INTERVAL_HOURS * 3600, cleanup_old_data)
+        cleanup_timer.daemon = True
+        cleanup_timer.start()
+        
+        next_cleanup_time = get_ist_time() + timedelta(hours=CLEANUP_INTERVAL_HOURS)
+        print(f"⏰ Next data cleanup scheduled for: {format_ist_time()}")
+        
+    except Exception as e:
+        print(f"❌ Error scheduling cleanup: {e}")
 
 def get_netdata_ui_calculation(server_url, chart_name, timestamp):
     """
@@ -238,18 +312,26 @@ def get_detailed_load_data(server_url):
 def store_metric_data(server_id, server_name, metric_type, value, timestamp):
     """
     Store metric data when threshold is crossed - organized by server
+    Uses Indian Standard Time for all timestamps
     """
     try:
-        # Convert Netdata timestamp to datetime for proper formatting
-        netdata_datetime = datetime.fromtimestamp(timestamp)
+        # Convert timestamp to IST if it's a Unix timestamp
+        if isinstance(timestamp, (int, float)):
+            ist_datetime = datetime.fromtimestamp(timestamp, IST_TIMEZONE)
+            formatted_time = ist_datetime.strftime('%Y-%m-%d %H:%M:%S IST')
+        else:
+            # If timestamp is already a datetime object
+            ist_datetime = timestamp.replace(tzinfo=IST_TIMEZONE) if timestamp.tzinfo is None else timestamp.astimezone(IST_TIMEZONE)
+            formatted_time = ist_datetime.strftime('%Y-%m-%d %H:%M:%S IST')
         
         data_entry = {
             'server_id': server_id,
             'server_name': server_name,
             'value': value,
             'timestamp': timestamp,
-            'datetime': netdata_datetime.isoformat(),
-            'formatted_time': netdata_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            'datetime': ist_datetime.isoformat(),
+            'formatted_time': formatted_time,
+            'ist_time': formatted_time  # Additional field for clarity
         }
         
         # Initialize server data structure if it doesn't exist
@@ -264,11 +346,12 @@ def store_metric_data(server_id, server_name, metric_type, value, timestamp):
         if metric_type in metric_history[server_id]:
             metric_history[server_id][metric_type].append(data_entry)
             
-            # Keep only last 50 entries per server per metric to prevent memory issues
-            if len(metric_history[server_id][metric_type]) > 50:
-                metric_history[server_id][metric_type] = metric_history[server_id][metric_type][-50:]
+            # Keep only last 100 entries per server per metric to prevent memory issues
+            # (increased from 50 to accommodate 48-hour retention)
+            if len(metric_history[server_id][metric_type]) > 100:
+                metric_history[server_id][metric_type] = metric_history[server_id][metric_type][-100:]
                 
-        print(f"📊 Stored {metric_type} data for {server_name} ({server_id}): {value} at {data_entry['formatted_time']}")
+        print(f"📊 Stored {metric_type} data for {server_name} ({server_id}): {value} at {formatted_time}")
         
     except Exception as e:
         print(f"Error storing metric data: {e}")
@@ -722,6 +805,46 @@ def health_check():
             'message': str(e)
         }), 500
 
+@app.route('/api/cleanup', methods=['POST'])
+def manual_cleanup():
+    """Manually trigger data cleanup"""
+    try:
+        cleanup_old_data()
+        return jsonify({
+            'status': 'success',
+            'message': 'Data cleanup completed',
+            'timestamp': get_ist_time().isoformat(),
+            'ist_time': format_ist_time()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'timestamp': get_ist_time().isoformat(),
+            'ist_time': format_ist_time()
+        }), 500
+
+@app.route('/api/timezone')
+def get_timezone_info():
+    """Get timezone information"""
+    try:
+        current_time = get_ist_time()
+        return jsonify({
+            'status': 'success',
+            'timezone': 'Asia/Kolkata',
+            'timezone_name': 'Indian Standard Time (IST)',
+            'current_time': current_time.isoformat(),
+            'formatted_time': format_ist_time(),
+            'utc_offset': current_time.strftime('%z'),
+            'data_retention_hours': DATA_RETENTION_HOURS,
+            'cleanup_interval_hours': CLEANUP_INTERVAL_HOURS
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 # Server Management API Endpoints
 @app.route('/api/servers', methods=['GET'])
 def get_servers():
@@ -861,4 +984,10 @@ if __name__ == '__main__':
     print("📡 WebSocket URL: ws://0.0.0.0:5001")
     print("🌐 Dashboard URL: http://0.0.0.0:5001")
     print("⚡ Real-time streaming: Enabled")
+    print("🇮🇳 Timezone: Indian Standard Time (IST)")
+    print("🧹 Data retention: 48 hours with automatic cleanup")
+    
+    # Initialize data cleanup timer
+    schedule_next_cleanup()
+    
     socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)
